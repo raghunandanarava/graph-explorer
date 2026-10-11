@@ -1,0 +1,7 @@
+pydantic>=2.6
+requests>=2.31
+networkx>=3.2
+scipy>=1.11
+numpy>=1.26
+soundfile>=0.12
+kokoro>=0.7

@@ -1,0 +1,79 @@
+{
+  "title": "Why is the Arctic warming so fast?",
+  "scenes": [
+    {
+      "narration": "Hello, I'm Vertie. The Arctic is warming several times faster than the rest of the planet. Why there, of all places?",
+      "caption": "Why the Arctic?",
+      "expression": "excited",
+      "pose": "wave",
+      "add_nodes": [{"id": "warmth", "label": "Warmth", "color": "coral", "icon": "thermometer"}],
+      "focus": ["warmth"]
+    },
+    {
+      "narration": "Right. Let's take it apart. Sunlight pours onto the Arctic. More sunlight, more warmth. That's a plus sign on this edge.",
+      "caption": "Signs on the edges",
+      "expression": "curious",
+      "pose": "point",
+      "add_nodes": [{"id": "sun", "label": "Sunlight", "color": "amber", "icon": "sun"}],
+      "add_edges": [{"from": "sun", "to": "warmth", "label": "heats", "sign": "+"}],
+      "focus": ["sun", "warmth"]
+    },
+    {
+      "narration": "Warmth melts sea ice. More warmth, less ice. When one goes up and the other goes down, the edge gets a minus.",
+      "expression": "curious",
+      "pose": "reach",
+      "reach": "ice",
+      "add_nodes": [{"id": "ice", "label": "Sea ice", "color": "chalk", "icon": "snowflake"}],
+      "add_edges": [{"from": "warmth", "to": "ice", "label": "melts", "sign": "-"}],
+      "focus": ["warmth", "ice"]
+    },
+    {
+      "narration": "Now, white ice is a mirror. It bounces sunlight back into space. More ice, more reflection. And more reflection means less warmth.",
+      "caption": "Ice is a mirror",
+      "expression": "neutral",
+      "pose": "point",
+      "add_nodes": [{"id": "mirror", "label": "Reflection", "color": "haze", "icon": "bulb"}],
+      "add_edges": [
+        {"from": "ice", "to": "mirror", "label": "reflects", "sign": "+"},
+        {"from": "mirror", "to": "warmth", "label": "cools", "sign": "-"}
+      ],
+      "focus": ["ice", "mirror", "warmth"]
+    },
+    {
+      "narration": "Follow the arrows round. Warmth melts ice, less ice reflects less, so there's even more warmth. It feeds itself. That's a reinforcing loop.",
+      "caption": "A loop!",
+      "expression": "excited",
+      "pose": "think",
+      "loop": ["warmth", "ice", "mirror"],
+      "focus": ["warmth", "ice", "mirror"]
+    },
+    {
+      "narration": "Let's give it a nudge and see what happens. A little extra warmth. The ice shrinks, the mirror dims, and the warmth climbs again. Ah. It runs away with itself.",
+      "caption": "Give it a nudge",
+      "expression": "puzzled",
+      "pose": "reach",
+      "nudge": {"node": "warmth", "by": 0.8},
+      "loop": ["warmth", "ice", "mirror"],
+      "focus": ["warmth", "ice", "mirror"]
+    },
+    {
+      "narration": "Luckily, there's a brake. A warmer planet glows more heat out into space. Warmth up, heat out up, warmth down. That one's a balancing loop.",
+      "caption": "The brake",
+      "expression": "curious",
+      "pose": "point",
+      "add_nodes": [{"id": "glow", "label": "Heat out", "color": "mint", "icon": "earth"}],
+      "add_edges": [
+        {"from": "warmth", "to": "glow", "label": "drives", "sign": "+"},
+        {"from": "glow", "to": "warmth", "label": "cools", "sign": "-"}
+      ],
+      "loop": ["warmth", "glow"],
+      "focus": ["warmth", "glow"]
+    },
+    {
+      "narration": "So the Arctic has an accelerator and a brake. The brake keeps the planet stable, but the melting ice makes the Arctic warm faster than anywhere else. Everything's connected. Annoyingly.",
+      "expression": "excited",
+      "pose": "wave",
+      "focus": []
+    }
+  ]
+}

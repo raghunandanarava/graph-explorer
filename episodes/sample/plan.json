@@ -1,0 +1,81 @@
+{
+  "title": "Why does it rain?",
+  "scenes": [
+    {
+      "narration": "Hello, I'm Vertie. I understand things by taking them apart. Today's victim: rain. Where does it actually come from?",
+      "caption": "Why does it rain?",
+      "expression": "excited",
+      "pose": "wave",
+      "add_nodes": [{"id": "rain", "label": "Rain", "color": "haze", "icon": "raindrop"}],
+      "focus": ["rain"]
+    },
+    {
+      "narration": "Right. Let's take it apart. Rain starts nowhere near a cloud. It starts with the Sun, warming the sea.",
+      "caption": "Follow the energy",
+      "expression": "curious",
+      "pose": "point",
+      "add_nodes": [
+        {"id": "sun", "label": "Sun", "color": "amber", "icon": "sun"},
+        {"id": "sea", "label": "Sea", "color": "mint", "icon": "wave"}
+      ],
+      "add_edges": [{"from": "sun", "to": "sea", "label": "warms"}],
+      "focus": ["sun", "sea"]
+    },
+    {
+      "narration": "Warm water evaporates. It turns into water vapour, an invisible gas, and drifts up into the sky.",
+      "caption": "Evaporation",
+      "expression": "curious",
+      "pose": "reach",
+      "reach": "vapour",
+      "add_nodes": [{"id": "vapour", "label": "Vapour", "color": "chalk", "icon": "vapour"}],
+      "add_edges": [{"from": "sea", "to": "vapour", "label": "evaporates"}],
+      "focus": ["sea", "vapour"]
+    },
+    {
+      "narration": "Higher up, the air is colder. The vapour cools and condenses into tiny droplets. Billions of them. That's a cloud.",
+      "caption": "Condensation",
+      "expression": "excited",
+      "pose": "cheer",
+      "add_nodes": [{"id": "cloud", "label": "Cloud", "color": "chalk", "icon": "cloud"}],
+      "add_edges": [{"from": "vapour", "to": "cloud", "label": "condenses"}],
+      "focus": ["vapour", "cloud"]
+    },
+    {
+      "narration": "Inside the cloud, droplets bump into each other and merge. Once they're too heavy to float, down they come.",
+      "expression": "neutral",
+      "pose": "think",
+      "add_edges": [{"from": "cloud", "to": "rain", "label": "falls as"}],
+      "focus": ["cloud", "rain"]
+    },
+    {
+      "narration": "Now. What happens if I pull this out? No Sun, no warm sea. No vapour, no clouds, no rain. Ah. That one's load-bearing.",
+      "caption": "What if...?",
+      "expression": "puzzled",
+      "pose": "reach",
+      "remove": "sun",
+      "focus": []
+    },
+    {
+      "narration": "Put it back, put it back. The Sun is the engine. It lifts the water up, and gravity brings it down again.",
+      "expression": "excited",
+      "pose": "point",
+      "restore": true,
+      "focus": ["sun"]
+    },
+    {
+      "narration": "And the rain flows back into rivers and the sea, ready to go round again. It's a loop.",
+      "caption": "It's a loop",
+      "expression": "excited",
+      "pose": "reach",
+      "reach": "sea",
+      "add_edges": [{"from": "rain", "to": "sea", "label": "refills"}],
+      "focus": ["rain", "sea"]
+    },
+    {
+      "narration": "So rain isn't really a thing. It's one step in a cycle, powered by the Sun. Everything's connected. Annoyingly.",
+      "expression": "excited",
+      "pose": "wave",
+      "focus": []
+    }
+  ]
+}

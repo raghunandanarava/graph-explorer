@@ -1,0 +1,109 @@
+{
+  "title": "Where does a tree come from?",
+  "scenes": [
+    {
+      "narration": "Hello, I'm Vertie. Today I'm taking apart a tree. A big old oak can weigh as much as ten cars. So where did all that wood come from?",
+      "caption": "Where does a tree come from?",
+      "expression": "excited",
+      "pose": "wave",
+      "add_nodes": [{"id": "tree", "label": "Tree", "color": "mint", "icon": "tree"}],
+      "focus": ["tree"]
+    },
+    {
+      "narration": "Most people guess the soil. But the soil around an old tree has barely gone down. So the wood is being made somewhere else. In the leaves.",
+      "caption": "Not the soil",
+      "expression": "curious",
+      "pose": "point",
+      "add_nodes": [{"id": "leaf", "label": "Leaf", "color": "mint", "icon": "seedling"}],
+      "add_edges": [{"from": "leaf", "to": "tree", "label": "feeds"}],
+      "focus": ["leaf", "tree"]
+    },
+    {
+      "narration": "Three things reach every leaf. Sunlight from above, water pulled up from the roots, and air, drifting in through tiny pores underneath.",
+      "caption": "What goes in",
+      "expression": "curious",
+      "pose": "think",
+      "add_nodes": [
+        {"id": "sun", "label": "Sunlight", "color": "amber", "icon": "sun"},
+        {"id": "water", "label": "Water", "color": "haze", "icon": "raindrop"},
+        {"id": "air", "label": "Air", "color": "chalk", "icon": "vapour"}
+      ],
+      "add_edges": [
+        {"from": "sun", "to": "leaf", "label": "shines on"},
+        {"from": "water", "to": "leaf", "label": "climbs to"},
+        {"from": "air", "to": "leaf", "label": "seeps into"}
+      ],
+      "focus": ["sun", "water", "air", "leaf"]
+    },
+    {
+      "narration": "Something clever happens in there. Let's go inside the leaf and have a look.",
+      "caption": "Inside a leaf",
+      "expression": "excited",
+      "pose": "point",
+      "open": "leaf",
+      "add_nodes": [{"id": "chloroplast", "label": "Chloroplast", "color": "mint", "icon": "cell"}],
+      "focus": ["chloroplast"]
+    },
+    {
+      "narration": "These little green parts are chloroplasts. They catch sunlight, and use its energy to split water apart.",
+      "caption": "Catching light",
+      "expression": "curious",
+      "pose": "reach",
+      "reach": "chloroplast",
+      "add_nodes": [
+        {"id": "sun", "label": "Light", "color": "amber", "icon": "sun"},
+        {"id": "water", "label": "Water", "color": "haze", "icon": "raindrop"}
+      ],
+      "add_edges": [
+        {"from": "sun", "to": "chloroplast", "label": "powers"},
+        {"from": "water", "to": "chloroplast", "label": "split by"}
+      ],
+      "focus": ["sun", "water", "chloroplast"]
+    },
+    {
+      "narration": "Then they grab carbon dioxide from the air and build it into sugar. Oxygen is left over, and drifts out for us to breathe.",
+      "caption": "Building sugar",
+      "expression": "excited",
+      "pose": "cheer",
+      "add_nodes": [
+        {"id": "co2", "label": "CO2", "color": "chalk", "icon": "vapour"},
+        {"id": "sugar", "label": "Sugar", "color": "amber", "icon": "battery"},
+        {"id": "oxygen", "label": "Oxygen", "color": "haze", "icon": "atom"}
+      ],
+      "add_edges": [
+        {"from": "co2", "to": "chloroplast", "label": "taken in"},
+        {"from": "chloroplast", "to": "sugar", "label": "builds"},
+        {"from": "chloroplast", "to": "oxygen", "label": "releases"}
+      ],
+      "focus": ["chloroplast", "sugar", "oxygen"]
+    },
+    {
+      "narration": "Now, what happens if I take the light away?",
+      "caption": "What if...?",
+      "expression": "puzzled",
+      "remove": "sun"
+    },
+    {
+      "narration": "Everything stops. No light, no sugar, and without sugar the plant slowly starves. Right, let's put that back.",
+      "expression": "neutral",
+      "pose": "point",
+      "restore": true,
+      "focus": ["sun", "sugar"]
+    },
+    {
+      "narration": "Back outside. All that sugar flows from the leaves to every part of the tree, and becomes wood.",
+      "caption": "Back outside",
+      "expression": "curious",
+      "pose": "point",
+      "close": true,
+      "focus": ["leaf", "tree"]
+    },
+    {
+      "narration": "So a tree isn't made of soil at all. It's mostly air and water, stitched together by sunlight.",
+      "caption": "Built from thin air",
+      "expression": "excited",
+      "pose": "cheer",
+      "focus": ["air", "water", "tree"]
+    }
+  ]
+}
