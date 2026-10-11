@@ -3,7 +3,7 @@
 Topic or script in, narrated animated video out, in **16:9** (YouTube) and **9:16** (Shorts/Reels).
 Everything runs locally on your Mac.
 
-**Docs:** [Architecture](docs/ARCHITECTURE.md) (diagrams, data contracts, components) · [Running step by step](docs/RUNNING.md) · [Feedback loops + live simulation](docs/FEEDBACK_LOOPS.md) · [Publishing extras](docs/PUBLISHING.md) · [Zoom into a node](docs/ZOOM.md) · [Fact-check](docs/FACTCHECK.md)
+**Docs:** [Architecture](docs/ARCHITECTURE.md) (diagrams, data contracts, components) · [Running step by step](docs/RUNNING.md) · [Feedback loops + live simulation](docs/FEEDBACK_LOOPS.md) · [Publishing extras](docs/PUBLISHING.md) · [Zoom into a node](docs/ZOOM.md) · [Fact-check](docs/FACTCHECK.md) · [Animation polish](docs/ANIMATION.md)
 
 ```
 topic / script
@@ -136,6 +136,8 @@ Icons: see `ICONS` in `pipeline/plan_schema.py` (sun, cloud, raindrop, cell, bra
 | Vertie's personality | `pipeline/persona.md` |
 | Scene-plan rules for the script-writer | `pipeline/planner.py` (`RULES`) |
 | Camera, walking, pull/restore timing | `video/src/director.ts` |
+| Vertie's squash, hops, startle; node bob and rings | `bodyFx()` and `build()` in `director.ts`, drawn by `Vertie.tsx` / `graph/Graph.tsx` |
+| Background layers, light beams | `video/src/Backdrop.tsx` |
 | Node icons | `video/src/graph/icons.tsx` + `ICONS` in `pipeline/plan_schema.py` |
 | Sound effects and music | `pipeline/sfx.py`, or drop your own WAVs into `video/public/sfx/` |
 | Thumbnail and Shorts cover | `video/src/Thumbnail.tsx` |

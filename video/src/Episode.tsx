@@ -6,6 +6,7 @@ import '@fontsource/ibm-plex-mono/600.css';
 import { RisoNode, Vertie } from './character/Vertie';
 import { Director, Format, PortalView, SCREEN, backOut, clamp01, coverRadius, easeInOut, easeOut } from './director';
 import { Graph, HeldNodes, LoopBadge } from './graph/Graph';
+import { FarLayers, NearLayer, Shafts } from './Backdrop';
 import { SimPanel } from './SimPanel';
 import { colors, fonts, mix, nodeColors } from './theme';
 import type { Episode as EpisodeData, SceneData, ShortSegment, Viseme } from './types';
@@ -424,6 +425,8 @@ export const Episode: React.FC<{ episode: EpisodeData; format: Format; episodeId
             <stop offset="100%" stopColor={colors.ink} stopOpacity={0.55} />
           </radialGradient>
         </defs>
+        <FarLayers cam={cam} time={time} fmt={format} anchorY={anchorY} />
+        <Shafts time={time} fmt={format} />
         <g transform={camTransform}>
           <rect x={-4000} y={-4000} width={12000} height={12000} fill="url(#grid-minor)" />
           <rect x={-4000} y={-4000} width={12000} height={12000} fill="url(#grid-major)" />
@@ -445,9 +448,11 @@ export const Episode: React.FC<{ episode: EpisodeData; format: Format; episodeId
             lookX={f.vertie.lookX}
             lookY={f.vertie.lookY}
             blink={blink}
+            fx={f.vertie.fx}
           /> : null}
           <HeldNodes nodes={f.nodes} t={time} zoom={cam.zoom} />
         </g>
+        <NearLayer cam={cam} time={time} fmt={format} anchorY={anchorY} />
         {f.portal ? <Portal portal={f.portal} fmt={format} cx={S.w / 2} cy={S.h * anchorY} /> : null}
         <rect width={S.w} height={S.h} fill="url(#vignette)" />
       </svg>

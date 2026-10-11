@@ -2,7 +2,7 @@
 // where Vertie stands, what its hands do, and the state of every node and edge.
 // Episode.tsx only draws what this returns.
 
-import { Hands, Pt, lerpPt, poseHands, AnyPose } from './character/Vertie';
+import { Hands, Pt, VertieFx, lerpPt, poseHands, AnyPose } from './character/Vertie';
 import type { Episode, GraphEdge, GraphNode, SceneData, SimRun } from './types';
 
 export type Format = 'landscape' | 'vertical';
@@ -19,7 +19,7 @@ const WORLD: Record<Format, { w: number; h: number }> = {
 export const NODE_R = 92;
 export const VERTIE_SCALE = 1;
 const CAM_MOVE = 1.1; // seconds for the camera to settle on a new framing
-const POSE_MOVE = 0.45;
+const POSE_MOVE = 0.55;
 
 // ---- timing shared with the pipeline (keep in sync with make_video.py) ----
 export const nodeDelay = (order: number) => 0.7 + order * 0.8;
@@ -46,6 +46,18 @@ export const easeInOut = (v: number) => {
 };
 export const easeOut = (v: number) => 1 - Math.pow(1 - clamp01(v), 3);
 export const easeIn = (v: number) => Math.pow(clamp01(v), 3);
+/** Overshoots the target a little and settles (used for hand poses). */
+export const easeBack = (v: number) => {
+  const x = clamp01(v);
+  const c1 = 1.0;
+  return 1 + (c1 + 1) * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+};
+const BOB = 5; // px, how far nodes drift up and down when idle
+const hashId = (s: string) => {
+  let h = 7;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 997;
+  return h;
+};
 export const backOut = (v: number) => {
   const x = clamp01(v);
   const c1 = 1.9;
@@ -78,6 +90,8 @@ export interface NodeState {
   held: boolean;
   isNew: boolean;
   level: number | null; // live simulation value, -1..1 (null = no simulation)
+  age: number | null; // seconds since it popped in (drives a squash-and-settle), null once settled
+  burst: { kind: 'pop' | 'break' | 'heal'; k: number } | null; // expanding ring, k runs 0..1
 }
 
 export interface EdgeState {
@@ -91,6 +105,9 @@ export interface EdgeState {
   broken: boolean;
   bend: number; // > 0 when a reverse edge exists, so the pair curves apart
   flow: number | null; // simulation value of the source node
+  tension: number; // 0..1: the edge is pulled taut just before it snaps
+  snapAge: number | null; // seconds since it snapped (drives the spark burst)
+  pulse: number; // 0..1 position of the energy pulse travelling along the edge, -1 = none
 }
 
 export interface LoopState {
@@ -119,7 +136,7 @@ export interface Frame {
   scene: SceneData;
   t: number; // seconds into the scene
   camera: Camera;
-  vertie: { pos: Pt; hands: Hands; walkPhase: number | null; lookX: number; lookY: number; scale: number };
+  vertie: { pos: Pt; hands: Hands; walkPhase: number | null; lookX: number; lookY: number; scale: number; fx: VertieFx };
   portal: PortalView | null;
   path: string[]; // breadcrumb: labels of the nodes we're inside
   nodes: NodeState[];
@@ -326,17 +343,81 @@ export class Director {
     };
   }
 
-  private walk(i: number, t: number): { pos: Pt; phase: number | null } {
+  private walk(i: number, t: number): { pos: Pt; phase: number | null; dist: number; dur: number; dir: number } {
     const to = this.stand[i];
-    if (this.ep.scenes[i].zoom) return { pos: to, phase: null }; // arrives by hopping, see frame()
+    if (this.ep.scenes[i].zoom) return { pos: to, phase: null, dist: 0, dur: 0, dir: 0 }; // arrives by hopping, see frame()
     const from = i === 0 ? to : this.stand[i - 1];
     const dist = Math.hypot(to.x - from.x, to.y - from.y);
-    if (dist < 5) return { pos: to, phase: null };
+    if (dist < 5) return { pos: to, phase: null, dist: 0, dur: 0, dir: 0 };
     const dur = Math.max(0.5, Math.min(1.6, dist / 650));
     const k = clamp01((t - 0.1) / dur);
     const e = easeInOut(k);
     const pos = lerpPt(from, to, e);
-    return { pos, phase: k > 0 && k < 1 ? (e * dist) / 34 : null };
+    return { pos, phase: k > 0 && k < 1 ? (e * dist) / 34 : null, dist, dur, dir: Math.sign(to.x - from.x) };
+  }
+
+  /** Body motion at an instant: anticipation, stretch, landing squash, hops, startle, breathing. */
+  private bodyFx(i: number, t: number, time: number): VertieFx {
+    const s = this.ep.scenes[i];
+    const o = s.animOffset ?? 0;
+    const w = this.walk(i, t);
+    const before = this.walk(i, Math.max(0, t - 1 / 30)).pos;
+    const vx = (w.pos.x - before.x) * 30;
+    const speed = clamp01(Math.abs(vx) / 650);
+    let squash = 0.012 * Math.sin(time * 2.2); // breathing
+    let lean = 0;
+    let lift = 0;
+    let startle = 0;
+    if (w.dist >= 5) {
+      if (t < 0.3) {
+        // wind-up: crouch and rock back before setting off
+        const a = Math.sin((Math.PI * t) / 0.3);
+        squash -= 0.13 * a;
+        lean -= w.dir * 3 * a;
+      }
+      lean += clamp01(Math.abs(vx) / 650) * 7 * Math.sign(vx);
+      squash += 0.05 * speed;
+      const tl = 0.1 + w.dur;
+      if (t > tl) squash -= 0.14 * Math.exp(-6 * (t - tl)) * Math.cos(15 * (t - tl)); // landing
+    }
+    if (s.pose === 'cheer' && !s.remove && !s.restore) {
+      const tau = t - 0.3;
+      if (tau > 0) {
+        const amp = Math.exp(-0.8 * tau);
+        lift += 34 * amp * Math.abs(Math.sin(tau * 5.2));
+        squash += 0.06 * amp * (lift / 34) - 0.1 * amp * (1 - clamp01(lift / 8));
+      }
+    } else if (s.expression === 'excited') {
+      const tau = t - 0.25;
+      if (tau > 0 && tau < 0.7) {
+        lift += 20 * Math.sin((Math.PI * tau) / 0.7);
+        squash += 0.05 * Math.sin((Math.PI * tau) / 0.7);
+      }
+    }
+    if (s.remove) {
+      const tau = t - (o + REMOVE_AT + 0.05);
+      const n = this.byId.get(s.remove);
+      if (tau > 0 && n) {
+        const away = Math.sign(this.stand[i].x - this.world(n).x) || 1;
+        startle = Math.exp(-3.2 * tau);
+        lean += away * 10 * Math.exp(-3.5 * tau);
+        squash += 0.15 * Math.exp(-5 * tau) * Math.cos(16 * tau);
+        lift += 18 * Math.exp(-4 * tau) * Math.abs(Math.sin(tau * 9));
+      }
+    }
+    if (s.restore) {
+      const tau = t - (o + RESTORE_AT);
+      if (tau > 0) {
+        lift += 22 * Math.exp(-3 * tau) * Math.abs(Math.sin(tau * 8));
+        squash += 0.07 * Math.exp(-3 * tau) * Math.sin(tau * 8);
+      }
+    }
+    if (s.nudge) {
+      const tau = t - (o + NUDGE_AT);
+      const n = this.byId.get(s.nudge.node);
+      if (tau > 0 && n) lean += (Math.sign(this.world(n).x - this.stand[i].x) || 1) * 5 * Math.exp(-4 * tau);
+    }
+    return { squash, lean, lift, startle, vx };
   }
 
   vertiePos(i: number, t: number): Pt {
@@ -351,6 +432,14 @@ export class Director {
     if (s.restore) return [{ start: 0, pose: 'hold' }, { start: o + RESTORE_FLY + 0.1, pose: s.pose === 'reach' ? 'point' : s.pose, reach: null }];
     if (s.heldAtStart) return [{ start: 0, pose: 'hold' }];
     if (s.nudge) return [{ start: 0, pose: 'reach', reach: s.nudge.node }, { start: o + NUDGE_AT + 0.6, pose: 'point' }];
+    if (s.pose === 'reach' && s.reach) {
+      // a node that hasn't popped in yet can't be touched: point first, reach once it appears
+      const n = this.byId.get(s.reach);
+      if (n && n.scene === i) {
+        const order = this.ep.nodes.filter((m) => m.group === s.group && m.scene === i).indexOf(n);
+        return [{ start: 0, pose: 'point' }, { start: o + nodeDelay(order) + 0.15, pose: 'reach', reach: s.reach }];
+      }
+    }
     return [{ start: 0, pose: s.pose, reach: s.reach }];
   }
 
@@ -383,7 +472,7 @@ export class Director {
       const prev = this.segments(i - 1);
       from = this.handsFor(i - 1, prev[prev.length - 1], this.ep.scenes[i - 1].duration);
     } else from = poseHands('idle');
-    const e = easeOut((t - segs[k].start) / POSE_MOVE);
+    const e = easeBack((t - segs[k].start) / POSE_MOVE);
     return { l: lerpPt(from.l, to.l, e), r: lerpPt(from.r, to.r, e) };
   }
 
@@ -480,19 +569,53 @@ export class Director {
     const run = this.simRun(i, time);
     const level = (id: string) => (run ? this.simValue(run, id, time) : null);
 
+    // idle drift: every node floats a few pixels, each on its own phase
+    const bobOf = (n: GraphNode, damp = 1): Pt => {
+      const h = hashId(n.id);
+      return { x: Math.cos(time * 0.9 + h) * BOB * 0.4 * damp, y: Math.sin(time * 1.4 + h) * BOB * damp };
+    };
+    const at = (n: GraphNode): Pt => {
+      const w = this.world(n);
+      const b = bobOf(n);
+      return { x: w.x + b.x, y: w.y + b.y };
+    };
+    // just before it's pulled out, the node is tugged towards Vertie's hand and its edges go taut
+    const tension = s.remove ? easeInOut((ta - (REMOVE_AT - 0.35)) / 0.35) : 0;
+    const tugged = (n: GraphNode): Pt => {
+      const base = at(n);
+      if (!(s.remove && n.id === s.remove) || tension <= 0) return base;
+      const shake = ta < REMOVE_AT ? Math.sin(ta * 70) * 3 * tension : 0;
+      const q = lerpPt(base, this.heldPos(i, t, 1), 0.08 * tension);
+      return { x: q.x + shake, y: q.y };
+    };
+
     const nodes: NodeState[] = vis.map((n) => {
       let scale = 1;
+      let age: number | null = null;
+      let burst: NodeState['burst'] = null;
       if (n.scene === i) {
         const d = nodeDelay(newNodes.indexOf(n));
         scale = backOut((ta - d) / 0.55);
         if (ta < d) scale = 0;
+        else if (ta - d < 1.2) age = ta - d;
+        if (ta >= d && ta - d < 0.7) burst = { kind: 'pop', k: (ta - d) / 0.7 };
       }
-      let pos = this.world(n);
+      let pos = tugged(n);
       const held = n.id === heldId;
       if (held && pull > 0) {
         const hs = 1 - 0.4 * pull;
         pos = lerpPt(pos, this.heldPos(i, t, hs), pull);
         scale *= hs;
+      }
+      const depth = s.broken[n.id];
+      if (!held && depth !== undefined) {
+        if (s.remove) {
+          const k = (ta - (BREAK_AT + depth * BREAK_STEP)) / 0.55;
+          if (k > 0 && k < 1) burst = { kind: 'break', k };
+        } else if (s.restore) {
+          const k = (ta - RESTORE_AT) / 0.5;
+          if (k > 0 && k < 1) burst = { kind: 'heal', k };
+        }
       }
       return {
         node: n,
@@ -504,6 +627,8 @@ export class Director {
         held: held && pull > 0.5,
         isNew: n.scene === i,
         level: level(n.id),
+        age,
+        burst,
       };
     });
     const pos = new Map(nodes.map((n) => [n.node.id, n]));
@@ -527,10 +652,17 @@ export class Director {
         else if (s.restore) snapped = 1 - easeOut((ta - RESTORE_AT) / 0.3);
         else snapped = 1;
       }
+      const taut = touchesHeld && s.remove && snapped <= 0.02;
+      const endA = taut && e.from === heldId ? tugged(a.node) : at(a.node);
+      const endB = taut && e.to === heldId ? tugged(b.node) : at(b.node);
+      const ph = (time * 0.4 + hashId(e.from + e.to) / 997) % 1;
       edges.push({
         edge: e,
-        a: this.world(a.node),
-        b: this.world(b.node),
+        a: endA,
+        b: endB,
+        tension: touchesHeld && s.remove ? tension : 0,
+        snapAge: touchesHeld && s.remove && ta >= REMOVE_AT ? ta - REMOVE_AT : null,
+        pulse: progress >= 1 && !touchesHeld && ph < 0.45 ? ph / 0.45 : -1,
         progress,
         snapped,
         heldEnd: touchesHeld ? (e.from === heldId ? 'a' : 'b') : null,
@@ -567,13 +699,20 @@ export class Director {
       sim = { run, ids: ids.length ? ids : busiest, now: time - run.start };
     }
 
-    const look = this.lookAt(i, t, w.pos, cam);
+    // eyes glide to the new target instead of jumping, with a little idle wander
+    let look = this.lookAt(i, t, w.pos, cam);
+    if (i > 0 && t < 0.4) {
+      const was = this.lookAt(i - 1, this.ep.scenes[i - 1].duration, this.stand[i - 1], this.cams[i - 1]);
+      const k = easeOut(t / 0.4);
+      look = { lookX: was.lookX + (look.lookX - was.lookX) * k, lookY: was.lookY + (look.lookY - was.lookY) * k };
+    }
+    look = { lookX: look.lookX + 0.07 * Math.sin(time * 1.9), lookY: look.lookY + 0.06 * Math.sin(time * 2.6 + 1) };
     return {
       sceneIndex: i,
       scene: s,
       t,
       camera: cam,
-      vertie: { pos: w.pos, hands, walkPhase: w.phase, ...look, scale: 1 },
+      vertie: { pos: w.pos, hands, walkPhase: w.phase, ...look, scale: 1, fx: this.bodyFx(i, t, time) },
       nodes,
       edges,
       loop,

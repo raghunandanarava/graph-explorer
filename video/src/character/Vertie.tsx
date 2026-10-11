@@ -65,6 +65,17 @@ export const RisoNode: React.FC<{ cx: number; cy: number; r: number; fill: strin
   );
 };
 
+/** Body motion computed by the director for this instant; every field is 0 at rest. */
+export interface VertieFx {
+  squash: number; // > 0 stretches tall and thin, < 0 squashes short and wide (anchored at the feet)
+  lean: number; // degrees, positive leans right, pivoting at the feet
+  lift: number; // pixels off the ground (hops); the shadow shrinks as it rises
+  startle: number; // 0..1: eyes go wide, mouth makes an O, antennae whip
+  vx: number; // horizontal speed in px/s, makes the antennae trail behind
+}
+export const NO_FX: VertieFx = { squash: 0, lean: 0, lift: 0, startle: 0, vx: 0 };
+const GROUND = 200; // local y of the floor; squash, lean and hops pivot here
+
 export interface VertieProps {
   t: number; // seconds, for idle motion
   x: number; // body centre, in the parent's coordinates
@@ -78,6 +89,7 @@ export interface VertieProps {
   lookX?: number; // -1 .. 1
   lookY?: number;
   blink?: boolean;
+  fx?: VertieFx;
 }
 
 export const Vertie: React.FC<VertieProps> = ({
@@ -93,6 +105,7 @@ export const Vertie: React.FC<VertieProps> = ({
   lookX = 0.5,
   lookY = 0,
   blink = false,
+  fx = NO_FX,
 }) => {
   const walking = walkPhase !== null;
   const bob = walking ? -Math.abs(Math.sin(walkPhase)) * 12 : Math.sin(t * 2.2) * 6 + (speaking ? Math.sin(t * 9) * 1.5 : 0);
@@ -111,7 +124,11 @@ export const Vertie: React.FC<VertieProps> = ({
   const handL = { x: hands.l.x - swing, y: hands.l.y + Math.sin(t * 2.2 + 1) * 4 };
   const handR = { x: hands.r.x, y: hands.r.y };
 
-  const sway = Math.sin(t * 1.7) * 6 + (walking ? Math.sin(walkPhase) * 8 : 0);
+  // antennae lag behind movement and whip when startled (follow-through)
+  const drag = Math.max(-38, Math.min(38, -fx.vx * 0.05));
+  const sway = Math.sin(t * 1.7) * 6 + (walking ? Math.sin(walkPhase) * 8 : 0) + drag + fx.startle * 26 * Math.sin(t * 34);
+  const sy = 1 + fx.squash;
+  const sx = 1 - fx.squash * 0.7; // keeps the volume roughly constant
   const excited = expression === 'excited';
   const glow = excited ? 0.5 + 0.5 * Math.sin(t * 8) : 0;
   const antennae = [
@@ -127,7 +144,15 @@ export const Vertie: React.FC<VertieProps> = ({
 
   return (
     <g transform={`translate(${x} ${y}) scale(${scale})`}>
-      <ellipse cx={0} cy={200} rx={96 - (walking ? Math.abs(bob) * 2 : 0)} ry={11} fill={colors.ink} opacity={0.45} />
+      <ellipse
+        cx={0}
+        cy={GROUND}
+        rx={(96 - (walking ? Math.abs(bob) * 2 : 0)) * Math.max(0.5, 1 - fx.lift / 160)}
+        ry={11}
+        fill={colors.ink}
+        opacity={0.45 * Math.max(0.35, 1 - fx.lift / 110)}
+      />
+      <g transform={`translate(0 ${-fx.lift}) translate(0 ${GROUND}) rotate(${fx.lean}) scale(${sx} ${sy}) translate(0 ${-GROUND})`}>
       {edge(add(HIP_L, body), footL)}
       {edge(add(HIP_R, body), footR)}
       <circle cx={footL.x} cy={footL.y} r={16} fill={colors.ink} stroke={colors.chalk} strokeWidth={4} />
@@ -154,9 +179,10 @@ export const Vertie: React.FC<VertieProps> = ({
         </g>
         <path d="M-72 -38 Q-60 -70 -30 -82" stroke={colors.chalk} strokeOpacity={0.45} strokeWidth={9} strokeLinecap="round" fill="none" />
         <circle r={100} fill="none" stroke={colors.ink} strokeWidth={5} />
-        <Eyes expression={expression} blink={blink ? 0.12 : 1} lookX={lookX * 7} lookY={lookY * 5} />
+        <Eyes expression={expression} blink={blink ? 0.12 : 1} lookX={lookX * 7} lookY={lookY * 5} startle={fx.startle} />
         <Glasses />
-        <Mouth viseme={viseme} expression={expression} speaking={speaking} />
+        <Mouth viseme={viseme} expression={expression} speaking={speaking} startle={fx.startle} />
+      </g>
       </g>
     </g>
   );
@@ -172,16 +198,23 @@ const Glasses: React.FC = () => (
   </g>
 );
 
-const Eyes: React.FC<{ expression: Expression; blink: number; lookX: number; lookY: number }> = ({ expression, blink, lookX, lookY }) => {
-  if (expression === 'excited') {
+const Eyes: React.FC<{ expression: Expression; blink: number; lookX: number; lookY: number; startle: number }> = ({
+  expression,
+  blink,
+  lookX,
+  lookY,
+  startle,
+}) => {
+  if (expression === 'excited' && startle < 0.2) {
     return (
       <path d="M-50 -14 Q-32 -36 -14 -14 M14 -14 Q32 -36 50 -14" stroke={colors.ink} strokeWidth={7} strokeLinecap="round" fill="none" />
     );
   }
   const big = expression === 'curious';
   const small = expression === 'puzzled';
-  const rl = small ? 19 : 21;
-  const rr = big ? 26 : small ? 19 : 21;
+  const wide = 1 + 0.28 * startle; // startled eyes widen, pupils shrink
+  const rl = (small ? 19 : 21) * wide;
+  const rr = (big ? 26 : small ? 19 : 21) * wide;
   return (
     <g>
       {[
@@ -190,7 +223,7 @@ const Eyes: React.FC<{ expression: Expression; blink: number; lookX: number; loo
       ].map((e, i) => (
         <g key={i} transform={`translate(${e.cx} -18) scale(1 ${blink})`}>
           <circle r={e.r} fill={colors.chalk} />
-          <circle cx={lookX} cy={2 + lookY} r={e.r * 0.45} fill={colors.ink} />
+          <circle cx={lookX} cy={2 + lookY} r={e.r * (0.45 - 0.17 * startle)} fill={colors.ink} />
           <circle cx={lookX + 3} cy={-2 + lookY} r={e.r * 0.15} fill={colors.chalk} />
         </g>
       ))}
@@ -199,9 +232,10 @@ const Eyes: React.FC<{ expression: Expression; blink: number; lookX: number; loo
   );
 };
 
-const Mouth: React.FC<{ viseme: Viseme; expression: Expression; speaking: boolean }> = ({ viseme, expression, speaking }) => {
+const Mouth: React.FC<{ viseme: Viseme; expression: Expression; speaking: boolean; startle: number }> = ({ viseme, expression, speaking, startle }) => {
   const ink = colors.ink;
   const y = 40;
+  if (startle > 0.25 && (!speaking || viseme === 'X')) return <ellipse cx={0} cy={y + 4} rx={11 * startle + 4} ry={14 * startle + 4} fill={ink} />;
   if (!speaking || viseme === 'X') {
     if (expression === 'excited') return <path d={`M-20 ${y - 6} Q0 ${y + 24} 20 ${y - 6} Z`} fill={colors.coral} stroke={ink} strokeWidth={4} />;
     if (expression === 'puzzled')

@@ -39,6 +39,8 @@ const state = (node: GraphNode, x: number, y: number, scale: number, broken: num
   held: false,
   isNew: false,
   level: null,
+  age: null,
+  burst: null,
 });
 
 const Grid: React.FC<{ w: number; h: number }> = ({ w, h }) => (

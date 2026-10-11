@@ -38,11 +38,31 @@ export const NodeView: React.FC<{ s: NodeState; t: number; ls: number }> = ({ s,
   const wobble = b > 0 ? Math.sin(t * 9 + n.x * 20) * 4 * b : 0;
   const lv = s.level ?? 0;
   const scale = s.scale * pulse * (s.dim ? 0.9 : 1) * (1 + 0.1 * lv);
+  // a node that just popped in squashes and stretches as it settles
+  const wob = s.age !== null ? Math.exp(-s.age * 5) * Math.cos(s.age * 20) : 0;
+  const sx = 1 - 0.14 * wob;
+  const sy = 1 + 0.14 * wob;
+  const b2 = s.burst;
+  const ring = b2 ? (b2.kind === 'break' ? colors.coral : b2.kind === 'heal' ? colors.mint : base) : colors.chalk;
   const hasIcon = !!n.icon;
   const labelSize = 30 * ls;
 
   return (
-    <g transform={`translate(${s.pos.x} ${s.pos.y}) rotate(${wobble}) scale(${scale})`}>
+    <g transform={`translate(${s.pos.x} ${s.pos.y}) rotate(${wobble}) scale(${scale * sx} ${scale * sy})`}>
+      {!s.held ? <circle cx={15} cy={22} r={r} fill={colors.ink} opacity={s.dim ? 0.12 : 0.3} /> : null}
+      {b2 ? (
+        <g>
+          <circle
+            r={r * (b2.kind === 'heal' ? 2.0 - 0.9 * b2.k : 1.05 + (b2.kind === 'pop' ? 0.9 : 0.75) * easeOutQ(b2.k))}
+            fill="none"
+            stroke={ring}
+            strokeWidth={(b2.kind === 'pop' ? 9 : 12) * (1 - b2.k) + 1}
+            opacity={(1 - b2.k) * (b2.kind === 'pop' ? 0.7 : 0.9)}
+          />
+          {b2.kind === 'break' ? <Sparks k={b2.k} r={r} color={colors.coral} n={8} seed={n.x * 9 + n.y} /> : null}
+          {b2.kind === 'heal' ? <Sparks k={1 - b2.k} r={r * 1.6} color={colors.mint} n={8} seed={n.x * 5 + n.y} /> : null}
+        </g>
+      ) : null}
       {s.focused ? <circle r={r + 20} fill="none" stroke={colors.amber} strokeWidth={5} strokeDasharray="8 12" transform={`rotate(${t * 20})`} /> : null}
       {s.level !== null && !s.held ? <Gauge r={r + 38} level={lv} /> : null}
       <circle cx={7} cy={6} r={r} fill={disc} />
@@ -74,6 +94,23 @@ export const NodeView: React.FC<{ s: NodeState; t: number; ls: number }> = ({ s,
           bg={s.dim ? mix(colors.ink, colors.blueprint, 0.4) : colors.ink}
         />
       ) : null}
+    </g>
+  );
+};
+
+const easeOutQ = (v: number) => 1 - Math.pow(1 - Math.max(0, Math.min(1, v)), 3);
+
+/** A ring of short rays flying outwards; k runs 0 (together) to 1 (gone). */
+const Sparks: React.FC<{ k: number; r: number; color: string; n: number; seed: number; spread?: number }> = ({ k, r, color, n, seed, spread = 0.9 }) => {
+  const e = easeOutQ(k);
+  return (
+    <g stroke={color} strokeLinecap="round" opacity={1 - k}>
+      {Array.from({ length: n }, (_, i) => {
+        const a = ((i + (seed % 1) * 0.5) / n) * Math.PI * 2 + seed;
+        const r0 = r * (1.1 + spread * e * 0.6);
+        const r1 = r0 + r * 0.22 * (1 - k);
+        return <line key={i} x1={Math.cos(a) * r0} y1={Math.sin(a) * r0} x2={Math.cos(a) * r1} y2={Math.sin(a) * r1} strokeWidth={7 * (1 - k) + 1} />;
+      })}
     </g>
   );
 };
@@ -119,13 +156,9 @@ const unit = (from: P, to: P): P => {
   return { x: (to.x - from.x) / d, y: (to.y - from.y) / d };
 };
 
-const EdgeView: React.FC<{ s: EdgeState; ls: number; t: number }> = ({ s, ls, t }) => {
-  if (s.progress <= 0) return null;
+const renderTorn = (s: EdgeState, u: P) => {
   const { a, b } = s;
-  const u = unit(a, b);
-  const color = s.broken ? colors.haze : s.dim ? mix(colors.chalk, colors.blueprint, 0.5) : colors.chalk;
 
-  if (s.snapped > 0.02) {
     // torn edge: a stub pulling back from the middle, with a jagged end, on the side still attached
     const start = { x: a.x + u.x * (NODE_R + 14), y: a.y + u.y * (NODE_R + 14) };
     const endFull = { x: b.x - u.x * (NODE_R + 22), y: b.y - u.y * (NODE_R + 22) };
@@ -151,11 +184,35 @@ const EdgeView: React.FC<{ s: EdgeState; ls: number; t: number }> = ({ s, ls, t 
         ) : null}
       </g>
     );
+  };
+
+const EdgeView: React.FC<{ s: EdgeState; ls: number; t: number }> = ({ s, ls, t }) => {
+  if (s.progress <= 0) return null;
+  const { a, b } = s;
+  const u = unit(a, b);
+  const color = s.broken ? colors.haze : s.dim ? mix(colors.chalk, colors.blueprint, 0.5) : colors.chalk;
+
+  if (s.snapped > 0.02 && s.snapAge !== null && s.snapAge < 0.6) {
+    // sparks where the edge tore, drawn under the stub
+    const kk = s.snapAge / 0.6;
+    const sp0 = { x: a.x + u.x * (NODE_R + 40), y: a.y + u.y * (NODE_R + 40) };
+    const sp1 = { x: b.x - u.x * (NODE_R + 48), y: b.y - u.y * (NODE_R + 48) };
+    const seed = a.x * 0.013 + b.y * 0.007;
+    return (
+      <g>
+        <g transform={`translate(${s.heldEnd === 'a' ? sp1.x : sp0.x} ${s.heldEnd === 'a' ? sp1.y : sp0.y})`}>
+          <Sparks k={kk} r={46} color={colors.amber} n={7} seed={seed} spread={0.5} />
+        </g>
+        {renderTorn(s, u)}
+      </g>
+    );
   }
+  if (s.snapped > 0.02) return renderTorn(s, u);
 
   // a quadratic curve; straight when bend is 0, bowed when a reverse edge exists
   const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-  const ctrl = { x: mid.x - u.y * s.bend * 2, y: mid.y + u.x * s.bend * 2 };
+  const bend = s.bend * (1 - s.tension); // a tugged edge straightens
+  const ctrl = { x: mid.x - u.y * bend * 2, y: mid.y + u.x * bend * 2 };
   const us = unit(a, ctrl);
   const ue = unit(b, ctrl);
   const start = { x: a.x + us.x * (NODE_R + 14), y: a.y + us.y * (NODE_R + 14) };
@@ -172,22 +229,50 @@ const EdgeView: React.FC<{ s: EdgeState; ls: number; t: number }> = ({ s, ls, t 
   if (angle > 90) angle -= 180;
   if (angle < -90) angle += 180;
   const sp = bez(start, ctrl, end, 0.8);
+  const taut = s.tension > 0;
+  const lineColor = taut ? mix(color, colors.coral, s.tension * 0.8) : color;
+  const lineW = 7 - 3 * s.tension;
+  const quiver = taut ? Math.sin(t * 90) * 2.5 * s.tension : 0;
   const sign = s.edge.sign;
   const flow = s.flow ?? 0;
   const effect = Math.sign(flow) * (sign === '-' ? -1 : 1);
   const speed = 0.3 + 0.9 * Math.abs(flow);
 
+  const head = s.progress < 1 ? bez(start, ctrl, end, Math.max(0.02, s.progress)) : null;
+
   return (
-    <g>
+    <g transform={quiver ? `translate(${quiver * -u.y} ${quiver * u.x})` : undefined}>
+      {!s.dim && !s.broken ? (
+        <path d={d} fill="none" stroke={colors.ink} strokeOpacity={0.22} strokeWidth={lineW} strokeLinecap="round" transform="translate(9 13)" pathLength={s.progress < 1 ? 1 : undefined} strokeDasharray={s.progress < 1 ? `${s.progress} 1` : undefined} />
+      ) : null}
       <path
         d={d}
         fill="none"
-        stroke={color}
-        strokeWidth={7}
+        stroke={lineColor}
+        strokeWidth={lineW}
         strokeLinecap="round"
         pathLength={s.progress < 1 ? 1 : undefined}
         strokeDasharray={s.progress < 1 ? `${s.progress} 1` : s.broken ? '4 16' : undefined}
       />
+      {head ? (
+        <g transform={`translate(${head.x} ${head.y})`}>
+          <circle r={19} fill={colors.amber} opacity={0.35} />
+          <circle r={10} fill={colors.amber} stroke={colors.ink} strokeWidth={3} />
+        </g>
+      ) : null}
+      {s.pulse >= 0 && !s.dim && !s.broken && Math.abs(s.flow ?? 0) <= 0.04 ? (
+        <path
+          d={d}
+          fill="none"
+          stroke={colors.amber}
+          strokeWidth={11}
+          strokeLinecap="round"
+          pathLength={1}
+          strokeDasharray="0.09 1.3"
+          strokeDashoffset={0.09 - s.pulse * 1.09}
+          opacity={0.9 * Math.sin(Math.PI * s.pulse)}
+        />
+      ) : null}
       {s.progress >= 1 ? (
         <polygon
           points={`${end.x + tip.x * 10},${end.y + tip.y * 10} ${end.x - tip.x * ah - tip.y * ah * 0.6},${end.y - tip.y * ah + tip.x * ah * 0.6} ${end.x - tip.x * ah + tip.y * ah * 0.6},${end.y - tip.y * ah - tip.x * ah * 0.6}`}

@@ -72,6 +72,7 @@ graph-explorer/
 │   ├── src/index.ts          registers Root
 │   ├── src/Root.tsx          Landscape, Vertical, Short + Thumbnail, Cover stills
 │   ├── src/Thumbnail.tsx     thumbnail and cover stills
+│   ├── src/Backdrop.tsx      parallax background layers + light beams
 │   ├── src/director.ts       per-frame state: camera, Vertie, nodes, edges, sfx
 │   ├── src/Episode.tsx       renders a frame + places audio
 │   ├── src/SimPanel.tsx      live simulation plot (extension)
@@ -192,6 +193,7 @@ flowchart LR
 | `Root.tsx` | Registers `Landscape`, `Vertical` and `Short` at 30 fps, plus the `Thumbnail` and `Cover` stills. `calculateMetadata` loads `episode.json` and sets the duration (intro + scenes + outro). |
 | `director.ts` | Built once per episode. Precomputes per scene **where Vertie stands** (scores about ten candidate spots: overlap with nodes and edges, framing orientation, walking distance) and **the camera framing** (bounding box of relevant nodes + Vertie → zoom to fit 86% × 64% of a landscape screen). `frame(time)` interpolates everything for one instant and returns plain data. Also produces the sound-effect schedule and the speech intervals. |
 | `Episode.tsx` | Draws one frame back to front: grid + dust, graph, Vertie, held node, vignette, then screen-space caption, karaoke subtitles, intro/outro cards. The camera is one SVG transform: `translate(screen centre) scale(zoom) translate(−camera)`. Places narration and effects with `<Sequence>`; the music volume ducks from 0.16 to 0.07 while Vertie speaks. Also draws the zoom porthole (`Portal`) and breadcrumb, the sources line on the outro, and, for the Short, maps cut time to episode time (`segments`). |
+| `Backdrop.tsx` | Far (glows, ghost graph), mid (bokeh), light-shaft and near layers, each following the camera at its own speed. See [ANIMATION.md](ANIMATION.md). |
 | `Thumbnail.tsx` | The `Thumbnail` and `Cover` stills: Vertie holding the pulled-out (or nudged) node, with the title. |
 | `Vertie.tsx` | Draws Vertie in local coordinates (body centre 0,0, radius 100). Limbs are straight edges from fixed joints, so a pose is just two hand positions (`poseHands`). Walk cycle via sine; nine mouth shapes; eyes with look direction and blinks; riso offset fills + halftone. |
 | `Graph.tsx` | `NodeView` (tinted disc, outline, icon, label pill; focused, dim, broken states) and `EdgeView` (drawing progress, arrowhead, label, torn stub). Dimming mixes colours instead of using opacity. Labels scale up when the camera is far out. |
@@ -223,6 +225,7 @@ All times are seconds from the scene start (constants in `director.ts`):
 | Extension | What it adds | Docs |
 | --- | --- | --- |
 | Fact-check + sources | claims → Wikipedia passages → LLM verdict with a verified quote; sources in the description and outro | [FACTCHECK.md](FACTCHECK.md) |
+| Animation polish | body motion, parallax layers, node/edge motion | [ANIMATION.md](ANIMATION.md) |
 | Zoom into a node | `open`/`close` in the plan, nested boards, dive + porthole transition, breadcrumb | [ZOOM.md](ZOOM.md) |
 | Publishing extras | Shorts cut, thumbnail, cover, SRT, YouTube description with chapters | [PUBLISHING.md](PUBLISHING.md) |
 | Feedback loops + live simulation | signed edges, R/B loop badges, `nudge`, simulation in `simulate.py`, gauges, flow dots, live panel | [FEEDBACK_LOOPS.md](FEEDBACK_LOOPS.md) |
